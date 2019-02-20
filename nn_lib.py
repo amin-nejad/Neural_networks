@@ -94,12 +94,15 @@ class SigmoidLayer(Layer):
     def __init__(self):
         self._cache_current = None
 
+    def sigmoid(self, x):
+        return 1/(1+(np.exp(-x)))
+
     def forward(self, x):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-        pass
-
+        self._cache_current = x
+        return self.sigmoid(x)
         #######################################################################
         #                       ** END OF YOUR CODE **
         #######################################################################
@@ -108,8 +111,9 @@ class SigmoidLayer(Layer):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-        pass
-
+        x = self._cache_current
+        x_deriv = self.sigmoid(x) * (1 - self.sigmoid(x))
+        return grad_z * x_deriv
         #######################################################################
         #                       ** END OF YOUR CODE **
         #######################################################################
@@ -127,7 +131,8 @@ class ReluLayer(Layer):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-        pass
+        self._cache_current = x
+        return (x if x > 0 else 0)
 
         #######################################################################
         #                       ** END OF YOUR CODE **
@@ -137,7 +142,8 @@ class ReluLayer(Layer):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-        pass
+        relu_grad = 1 if self._cache_current > 0 else 0 # gradient of y=x is 1
+        return grad_z * relu_grad
 
         #######################################################################
         #                       ** END OF YOUR CODE **
@@ -162,8 +168,8 @@ class LinearLayer(Layer):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-        self._W = None
-        self._b = None
+        self._W = xavier_init((n_in, n_out))
+        self._b = np.zeros(1, n_out)
 
         self._cache_current = None
         self._grad_W_current = None
@@ -189,7 +195,8 @@ class LinearLayer(Layer):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-
+        self._cache_current = x
+        return np.dot(x, self._W) + self._b
         #######################################################################
         #                       ** END OF YOUR CODE **
         #######################################################################
@@ -211,7 +218,9 @@ class LinearLayer(Layer):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-
+        self._grad_W_current = np.dot(self._cache_current.T, grad_z)
+        self._grad_b_current = np.sum(grad_z, axis=0)
+        return (np.dot(grad_z, self._W.T))
         #######################################################################
         #                       ** END OF YOUR CODE **
         #######################################################################
@@ -227,7 +236,8 @@ class LinearLayer(Layer):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-
+        self._W = self._W - (learning_rate * self._grad_W_current)
+        self._b = self._b - (learning_rate * self._grad_b_current)
         #######################################################################
         #                       ** END OF YOUR CODE **
         #######################################################################
@@ -256,10 +266,37 @@ class MultiLayerNetwork(object):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-        self._layers = None
+        self._layers = []
+
+        assert(len(neurons) == len(activations))
+        
+        # set up the structure of the layers
+        in_dim = self.input_dim
+
+        for i in range(len(self.neurons)):
+            out_dim = self.neurons[i]
+
+            linear_layer = LinearLayer(in_dim, out_dim)
+            activation_name = self.activations[i]
+            layer_activation = self.get_layer(activation_name)
+            
+            self._layers.append(linear_layer)
+            self._layers.append(layer_activation)
+            
+            in_dim = out_dim
+
         #######################################################################
         #                       ** END OF YOUR CODE **
         #######################################################################
+        #######################################################################
+    
+    # Returns a relu or sigmoid layer. If name is "identity", returns None 
+    def get_layer(self, name):
+        if name == "relu":
+            return ReluLayer()
+        if name == "sigmoid":
+            return SigmoidLayer()
+        return None
 
     def forward(self, x):
         """
@@ -275,7 +312,15 @@ class MultiLayerNetwork(object):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
+        output = None
 
+        for i in range(len(self._layers)):
+            if i == 0:
+                output = self._layers[i].forward(x)
+            elif self._layers[i] is not None:
+                output = self._layers[i].forward(output)    
+
+        return output
         #######################################################################
         #                       ** END OF YOUR CODE **
         #######################################################################
@@ -298,6 +343,13 @@ class MultiLayerNetwork(object):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
+        total = len(self._layers)
+        
+        for i in range(len(self._layers)):
+            if (self._layers[total-i-1] is not None):
+                grad_z = self._layers[total-i-1].backward(grad_z)
+
+        return grad_z
 
         #######################################################################
         #                       ** END OF YOUR CODE **
@@ -314,7 +366,9 @@ class MultiLayerNetwork(object):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-
+        for i in range(len(self._layers)):
+            if (self._layers[i] is not None):
+                self._layers[i].update_params(learning_rate)
         #######################################################################
         #                       ** END OF YOUR CODE **
         #######################################################################
@@ -373,7 +427,12 @@ class Trainer(object):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-        self._loss_layer = None
+        if (loss_fun == "mse"):
+            self._loss_layer = MSELossLayer()
+        elif (loss_fun == "cross_entropy" or loss_fun == "bce"):
+            self._loss_layer = CrossEntropyLossLayer()
+
+        assert(self._loss_layer is not None)
         #######################################################################
         #                       ** END OF YOUR CODE **
         #######################################################################
@@ -394,6 +453,16 @@ class Trainer(object):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
+        
+        # append target data to input data as columns, then shuffle
+        all_ = np.concatenate((input_dataset, target_dataset), axis = 1)
+        np.random.shuffle(all_)
+        
+        # re-extract input and target data
+        shuffle_input_dataset = all_[:, :input_dataset.shape[1]]
+        shuffle_target_dataset = all_[:, input_dataset.shape[1]:]
+        
+        return shuffle_input_dataset, shuffle_target_dataset
 
         #######################################################################
         #                       ** END OF YOUR CODE **
@@ -422,6 +491,41 @@ class Trainer(object):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
+        
+        input_num = input_dataset.shape[0]
+        number_of_batches = input_num // self.batch_size
+        
+        for epoch in range(self.nb_epoch):
+            
+            loss_print = 0
+
+            # shuffle if shuffle_flag is true
+            if (self.shuffle_flag):
+                input_dataset, target_dataset = self.shuffle(input_dataset, target_dataset)
+            
+            # loop through the input dataset 
+            for batch_id in range(number_of_batches):
+                
+                input_batch = input_dataset[self.batch_size*batch_id:self.batch_size*(batch_id+1),:]
+                target_batch = target_dataset[self.batch_size*batch_id:self.batch_size*(batch_id+1),:]
+                
+                # forward pass followed by backpropagation
+                output_batch = self.network.forward(input_batch)
+                loss = self._loss_layer.forward(output_batch, target_batch)
+                grad_z = self._loss_layer.backward()
+                self.network.backward(grad_z)
+                self.network.update_params(self.learning_rate)
+                
+                loss_print += loss # increment the total loss
+            
+            # print the average loss of the minibatches every n epochs
+            n = 100
+            if (epoch % n == 0):
+                print ("epoch = ", epoch, ", loss = ", loss_print/(input_num / number_of_batches))
+            
+            # decay the learning rate every 10n epochs
+            if (epoch % (10*n) == 0):
+                self.learning_rate = self.learning_rate/2
 
         #######################################################################
         #                       ** END OF YOUR CODE **
@@ -440,7 +544,8 @@ class Trainer(object):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-
+        eval_output = self.network.forward(input_dataset)
+        return self._loss_layer.forward(eval_output, target_dataset)
         #######################################################################
         #                       ** END OF YOUR CODE **
         #######################################################################
@@ -464,7 +569,9 @@ class Preprocessor(object):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-
+        self.max_ = np.max(data, axis = 0)
+        self.min_ = np.min(data, axis = 0)
+        self.range_ = self.max_ - self.min_
         #######################################################################
         #                       ** END OF YOUR CODE **
         #######################################################################
@@ -482,7 +589,8 @@ class Preprocessor(object):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-
+        data_normalized = np.divide (data - self.min_, self.range_)
+        return data_normalized
         #######################################################################
         #                       ** END OF YOUR CODE **
         #######################################################################
@@ -500,6 +608,8 @@ class Preprocessor(object):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
+
+        return np.multiply (data, self.range_) + self.min_
 
         #######################################################################
         #                       ** END OF YOUR CODE **
