@@ -132,7 +132,8 @@ class ReluLayer(Layer):
         #                       ** START OF YOUR CODE **
         #######################################################################
         self._cache_current = x
-        return (x if x > 0 else 0)
+        x[x<0] = 0
+        return x
 
         #######################################################################
         #                       ** END OF YOUR CODE **
@@ -142,8 +143,12 @@ class ReluLayer(Layer):
         #######################################################################
         #                       ** START OF YOUR CODE **
         #######################################################################
-        relu_grad = 1 if self._cache_current > 0 else 0 # gradient of y=x is 1
-        return grad_z * relu_grad
+        
+        relu_grad = self._cache_current 
+        relu_grad[relu_grad<0] = 0
+        relu_grad[relu_grad>0] = 1 # gradient of y=x is 1
+        
+        return (grad_z * relu_grad)
 
         #######################################################################
         #                       ** END OF YOUR CODE **
@@ -169,7 +174,7 @@ class LinearLayer(Layer):
         #                       ** START OF YOUR CODE **
         #######################################################################
         self._W = xavier_init((n_in, n_out))
-        self._b = np.zeros(1, n_out)
+        self._b = np.zeros((1, n_out))
 
         self._cache_current = None
         self._grad_W_current = None
