@@ -27,8 +27,8 @@ def main():
     input_dim = output_dim = 3 # constant outlined in specification
     
     # Modify any of the following hyperparameters     
-    num_of_hidden_layers = 4  # Does not count input/output layer
-    neurons_per_hidden_layer = 50 # Configures all hidden layers to have the same number of neurons
+    num_of_hidden_layers = 3  # Does not count input/output layer
+    neurons_per_hidden_layer = 8 # Configures all hidden layers to have the same number of neurons
     activation_hidden = "relu"
     activation_output = "identity"
     loss_function = "mse"
@@ -92,7 +92,7 @@ def main():
     print("MAE = ", mean_absolute_error)
 
     print("Train loss = ", trainer.eval_loss(x_train_pre, y_train_pre))
-    print("Validation loss = ", trainer.eval_loss(x_val_pre, y_val_pre))
+    print("Validation loss = ", trainer.eval_loss(x_val_pre, y_val_pre))    
     
     #######################################################################
     #                       ** END OF YOUR CODE **
